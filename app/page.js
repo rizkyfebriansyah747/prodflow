@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 
 // ─── PALETTE & CONSTANTS ──────────────────────────────────────────────────────
 const C = {
-  bg: '#F7F6F3', card: '#FFFFFF', border: '#E8E6E1',
+  bg: '#033566', card: '#fefefe', border: '#E8E6E1',
   text: '#1C1B18', muted: '#7A7870', faint: '#AEACA6',
   accent: '#2563EB', accentBg: '#EFF4FF',
   green: '#16A34A', greenBg: '#F0FDF4',
