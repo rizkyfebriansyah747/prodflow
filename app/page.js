@@ -790,15 +790,20 @@ function DelegatePage({ user, users, events, setEvents, onNav, onToast }) {
     try {
       onToast('⏳ Menyimpan ke database & mengirim email...')
 
-      // 1. Siapkan struktur data
+    // 1. Siapkan struktur data yang 100% cocok dengan Supabase
       const newContentPayload = {
         title: title.trim(),
-        cat,
-        loadType,
-        start,
-        end,
-        brief,
-        pic: user.id,
+        category: cat,          // 'cat' adalah nama state React, 'category' kolom DB
+        type: loadType,         // 'loadType' adalah nama state React, 'type' kolom DB
+        status: 'aktif',        // Menambahkan status default karena di DB ada kolomnya
+        brief: brief,
+        start_date: start,      // 'start' adalah nama state React, 'start_date' kolom DB
+        deadline: end,          // 'end' adalah nama state React, 'deadline' kolom DB
+        
+        // Sesuaikan dengan nama kolom di screenshot: pic_id
+        pic_id: user.id,
+
+        // ⚠️ CATATAN PENTING UNTUK 2 KOLOM DI BAWAH:
         assignees: valid.map(r => ({
           userId: r.userId,
           role: r.role,
@@ -807,7 +812,6 @@ function DelegatePage({ user, users, events, setEvents, onNav, onToast }) {
           submitNote: null
         }))
       }
-
       // 2. Simpan ke Database (Panggil API contents)
       const res = await apiPost('/api/contents', newContentPayload)
       const insertedId = res.contentId || eid() // Ambil ID asli dari DB jika ada, atau fallback

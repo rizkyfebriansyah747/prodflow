@@ -25,16 +25,17 @@ export async function GET() {
 
     if (aErr) throw aErr
 
-    // Gabungkan assignees ke dalam tiap konten
+    // Gabungkan assignees ke dalam tiap konten untuk ditampilkan di Frontend
     const result = contents.map(c => ({
       id: c.id,
       title: c.title,
-      cat: c.cat,
-      loadType: c.load_type,
+      cat: c.category,         // Frontend butuh 'cat', dari DB namanya 'category'
+      loadType: c.type,        // Frontend butuh 'loadType', dari DB namanya 'type'
       start: c.start_date,
-      end: c.end_date,
+      end: c.deadline,         // Frontend butuh 'end', dari DB namanya 'deadline'
       brief: c.brief,
       pic: c.pic_id,
+      status: c.status,
       assignees: assignees
         .filter(a => a.content_id === c.id)
         .map(a => ({
@@ -58,18 +59,28 @@ export async function GET() {
 // POST: buat konten baru
 export async function POST(request) {
   try {
-    const { title, cat, loadType, start, end, brief, pic, assignees } = await request.json()
+    // Tangkap data persis seperti yang dikirim oleh page.js
+    const { title, category, type, status, brief, start_date, deadline, pic_id, assignees } = await request.json()
 
-    // Insert konten
+    // 1. Insert konten ke tabel 'contents' tanpa mengubah nama kolom
     const { data: content, error: cErr } = await supabase
       .from('contents')
-      .insert({ title, cat, load_type: loadType, start_date: start, end_date: end, brief, pic_id: pic })
+      .insert({ 
+        title, 
+        category, 
+        type, 
+        status, 
+        brief, 
+        start_date, 
+        deadline, 
+        pic_id 
+      })
       .select()
       .single()
 
     if (cErr) throw cErr
 
-    // Insert assignees
+    // 2. Insert tim pengerja ke tabel 'assignees'
     if (assignees?.length) {
       const { error: aErr } = await supabase
         .from('assignees')
@@ -77,7 +88,7 @@ export async function POST(request) {
           content_id: content.id,
           user_id: a.userId,
           role: a.role,
-          status: 'aktif',
+          status: a.status,
         })))
 
       if (aErr) throw aErr
