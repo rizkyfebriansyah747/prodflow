@@ -775,20 +775,71 @@ function DelegatePage({ user, users, events, setEvents, onNav, onToast }) {
 
   function updRow(i,f,v){ setRows(r=>r.map((row,idx)=>idx===i?{...row,[f]:v}:row)) }
 
-  function doSubmit(){
-    if(!title.trim()){onToast('Isi judul konten!');return}
-    const valid=rows.filter(r=>r.userId&&r.role)
-    if(!valid.length){onToast('Tambahkan minimal satu penugasan!');return}
+  async function doSubmit() {
+    if (!title.trim()) { onToast('Isi judul konten!'); return }
+    const valid = rows.filter(r => r.userId && r.role)
+    if (!valid.length) { onToast('Tambahkan minimal satu penugasan!'); return }
+    
     // Cek apakah ada yang penuh
-    const overloaded=valid.filter(r=>isUserFull(r.userId))
-    if(overloaded.length>0){
-      onToast(`⚠ ${overloaded.map(r=>uName(r.userId)).join(', ')} sudah penuh. Hapus atau ganti dulu.`)
+    const overloaded = valid.filter(r => isUserFull(r.userId))
+    if (overloaded.length > 0) {
+      onToast(`⚠ ${overloaded.map(r => uName(r.userId)).join(', ')} sudah penuh. Hapus atau ganti dulu.`)
       return
     }
-    setEvents(ev=>[...ev,{id:eid(),title:title.trim(),cat,loadType,start,end,brief,pic:user.id,assignees:valid.map(r=>({userId:r.userId,role:r.role,status:'aktif',submitLink:null,submitNote:null}))}])
-    onToast('✅ Konten dibuat & notifikasi terkirim ke tim!')
-    setTitle('');setBrief('');setRows([{userId:'',role:''}])
-    setTimeout(()=>onNav('calendar'),1400)
+
+    try {
+      onToast('⏳ Menyimpan ke database & mengirim email...')
+
+      // 1. Siapkan struktur data
+      const newContentPayload = {
+        title: title.trim(),
+        cat,
+        loadType,
+        start,
+        end,
+        brief,
+        pic: user.id,
+        assignees: valid.map(r => ({
+          userId: r.userId,
+          role: r.role,
+          status: 'aktif',
+          submitLink: null,
+          submitNote: null
+        }))
+      }
+
+      // 2. Simpan ke Database (Panggil API contents)
+      const res = await apiPost('/api/contents', newContentPayload)
+      const insertedId = res.contentId || eid() // Ambil ID asli dari DB jika ada, atau fallback
+
+      // 3. Kirim Email Notifikasi via Nodemailer ke masing-masing assignee
+      for (const row of valid) {
+        const memberEmail = users.find(u => u.id === row.userId)?.email
+        if (memberEmail) {
+          await sendNotif('assign', {
+            to: memberEmail,
+            memberName: uName(row.userId),
+            contentTitle: title.trim(),
+            role: row.role,
+            deadline: end,
+            pic: user.name, 
+            brief: brief
+          }).catch(e => console.warn('Email gagal terkirim ke', memberEmail, e)) 
+        }
+      }
+
+      // 4. Update state lokal agar kalender langsung terupdate tanpa perlu reload halaman
+      setEvents(ev => [...ev, { ...newContentPayload, id: insertedId }])
+
+      onToast('✅ Konten berhasil dibuat & email terkirim!')
+      setTitle(''); setBrief(''); setRows([{ userId: '', role: '' }])
+      
+      // Pindah halaman kembali ke kalender
+      setTimeout(() => onNav('calendar'), 1400)
+
+    } catch (err) {
+      onToast('❌ Gagal membuat tugas: ' + err.message)
+    }
   }
 
   return (
@@ -856,9 +907,7 @@ function DelegatePage({ user, users, events, setEvents, onNav, onToast }) {
       </div>
     </div>
   )
-}
-
-// ─── REVIEW ───────────────────────────────────────────────────────────────────
+}// ─── REVIEW ───────────────────────────────────────────────────────────────────
 // LOGIC:
 // - Setiap konten punya beberapa assignee
 // - Tiap assignee punya status sendiri: aktif | review | revisi | selesai
