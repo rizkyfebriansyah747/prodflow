@@ -1,15 +1,7 @@
 // app/api/notify/route.js
-// File ini WAJIB ada agar email notifikasi bisa terkirim via Resend
-// Letakkan di: app/api/notify/route.js
 
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 import { NextResponse } from 'next/server'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
-
-// Email pengirim — pakai format ini saat development (domain belum diverifikasi)
-// Ganti dengan email domain kamu sendiri setelah domain diverifikasi di Resend
-const FROM_EMAIL = 'TIKKIM <onboarding@resend.dev>'
 
 // ─── TEMPLATE EMAIL ────────────────────────────────────────────────────────────
 function baseTemplate(content) {
@@ -84,7 +76,7 @@ export async function POST(request) {
         </div>
         ${brief ? `<div class="note-box"><strong>Brief:</strong> ${brief}</div>` : ''}
         <p style="font-size:13px;color:#5A7A9A">Selesaikan tugasmu dan submit hasilnya melalui TIKKIM sebelum deadline.</p>
-        <a class="btn" href="${process.env.NEXT_PUBLIC_APP_URL}">Buka TIKKIM →</a>
+        <a class="btn" href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontentikkim.vercel.app'}">Buka TIKKIM →</a>
       `)
     }
 
@@ -102,7 +94,7 @@ export async function POST(request) {
         ${link ? `<div class="link-box">🔗 <a href="${link}">${link}</a></div>` : ''}
         ${note ? `<div class="note-box"><strong>Catatan dari ${memberName}:</strong><br>${note}</div>` : ''}
         ${attachments?.length ? `<div class="info-box"><span class="info-label">Lampiran:</span> ${attachments.join(', ')}</div>` : ''}
-        <a class="btn" href="${process.env.NEXT_PUBLIC_APP_URL}">Review Sekarang →</a>
+        <a class="btn" href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontentikkim.vercel.app'}">Review Sekarang →</a>
       `)
     }
 
@@ -119,7 +111,7 @@ export async function POST(request) {
           <div class="info-row"><span class="info-label">Status</span><span class="info-value" style="color:#15803D">✅ Selesai</span></div>
         </div>
         <p style="font-size:13px;color:#5A7A9A">Kerja bagus! Lihat detail dan riwayat tugasmu di TIKKIM.</p>
-        <a class="btn" href="${process.env.NEXT_PUBLIC_APP_URL}">Lihat di TIKKIM →</a>
+        <a class="btn" href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontentikkim.vercel.app'}">Lihat di TIKKIM →</a>
       `)
     }
 
@@ -139,7 +131,7 @@ export async function POST(request) {
           <span style="line-height:1.7;display:block;margin-top:6px">${note}</span>
         </div>
         <p style="font-size:13px;color:#5A7A9A">Segera perbaiki dan submit ulang melalui TIKKIM.</p>
-        <a class="btn" href="${process.env.NEXT_PUBLIC_APP_URL}">Submit Ulang →</a>
+        <a class="btn" href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontentikkim.vercel.app'}">Submit Ulang →</a>
       `)
     }
 
@@ -147,20 +139,27 @@ export async function POST(request) {
       return NextResponse.json({ error: `Tipe notifikasi tidak dikenal: ${type}` }, { status: 400 })
     }
 
-    // ── Kirim via Resend ────────────────────────────────────────────────────────
-    const { data: resendData, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: [to],
+    // ── Konfigurasi Transport Nodemailer ──────────────────────────────────────
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,
+      },
+    })
+
+    // ── Kirim via Gmail ────────────────────────────────────────────────────────
+    // Array receiver (jika lebih dari satu) di-join dengan koma agar valid
+    const mailTo = Array.isArray(to) ? to.join(', ') : to
+
+    const info = await transporter.sendMail({
+      from: `"TIKKIM Content Manager" <${process.env.GMAIL_USER}>`,
+      to: mailTo,
       subject,
       html,
     })
 
-    if (error) {
-      console.error('Resend error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, id: resendData?.id })
+    return NextResponse.json({ success: true, messageId: info.messageId })
 
   } catch (err) {
     console.error('API notify error:', err)
