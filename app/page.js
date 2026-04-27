@@ -27,10 +27,21 @@ async function sbGetProfile() {
 async function apiCall(method, path, body) {
   const opts = { method, headers: {'Content-Type':'application/json'} }
   if (body) opts.body = JSON.stringify(body)
+  
   const res = await fetch(path, opts)
-  const json = await res.json()
-  if (!res.ok) throw new Error(json.error || 'Request gagal')
-  return json
+  
+  // Cek apakah headers balasan berisi JSON
+  const contentType = res.headers.get("content-type")
+  if (contentType && contentType.includes("application/json")) {
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error || 'Request gagal')
+    return json
+  } else {
+    // Jika bukan JSON (biasanya HTML Error), tangkap raw text-nya
+    const rawText = await res.text()
+    console.error(`Error dari ${path}:`, rawText)
+    throw new Error(`Server tidak membalas dengan JSON (Status: ${res.status}). Cek console browser untuk detail error.`)
+  }
 }
 const apiGet  = path        => apiCall('GET',   path)
 const apiPost = (path, b)   => apiCall('POST',  path, b)
@@ -1143,7 +1154,7 @@ function UsersPage({ users, setUsers, onToast }) {
 
   async function toggleActive(userId,current){
     try{
-      await apiPatch('/api/users',{userId,active:!current})
+      await apiPatch('api/users',{userId,active:!current})
       setUsers(us=>us.map(u=>u.id===userId?{...u,active:!current}:u))
       onToast(`Akun ${!current?'diaktifkan':'dinonaktifkan'}.`)
     }catch(e){onToast('Gagal: '+e.message)}
